@@ -2,6 +2,63 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "definitions": {
+    "HookToolAction": {
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/definitions/HookToolActionItem"
+          },
+          "type": "array"
+        },
+        "display_label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actions",
+        "display_label"
+      ],
+      "type": "object"
+    },
+    "HookToolActionItem": {
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/HookToolActionKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label"
+      ],
+      "type": "object"
+    },
+    "HookToolActionKind": {
+      "enum": [
+        "read",
+        "list",
+        "search",
+        "run",
+        "added",
+        "deleted",
+        "edited"
+      ],
+      "type": "string"
+    },
     "NullableString": {
       "type": [
         "string",
@@ -32,6 +89,9 @@
     },
     "session_id": {
       "type": "string"
+    },
+    "tool_action": {
+      "$ref": "#/definitions/HookToolAction"
     },
     "tool_input": true,
     "tool_name": {

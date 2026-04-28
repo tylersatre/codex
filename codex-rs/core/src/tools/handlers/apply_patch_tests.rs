@@ -1,6 +1,9 @@
 use super::*;
 use codex_apply_patch::MaybeApplyPatchVerified;
 use codex_exec_server::LOCAL_FS;
+use codex_hooks::HookToolAction;
+use codex_hooks::HookToolActionItem;
+use codex_hooks::HookToolActionKind;
 use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_protocol::protocol::FileChange;
 use codex_protocol::protocol::SandboxPolicy;
@@ -26,6 +29,32 @@ fn sample_patch() -> &'static str {
 *** Add File: hello.txt
 +hello
 *** End Patch"#
+}
+
+fn patch_action(display_label: &str, actions: Vec<HookToolActionItem>) -> HookToolAction {
+    HookToolAction {
+        display_label: display_label.to_string(),
+        actions,
+    }
+}
+
+fn patch_action_item(kind: HookToolActionKind, label: &str, path: &str) -> HookToolActionItem {
+    HookToolActionItem {
+        kind,
+        label: label.to_string(),
+        command: None,
+        name: Some(path.to_string()),
+        path: Some(expected_patch_path(path)),
+        query: None,
+    }
+}
+
+fn expected_patch_path(path: &str) -> String {
+    std::env::current_dir()
+        .expect("current dir")
+        .join(path)
+        .display()
+        .to_string()
 }
 
 async fn invocation_for_payload(payload: ToolPayload) -> ToolInvocation {
@@ -56,6 +85,14 @@ async fn pre_tool_use_payload_uses_json_patch_input() {
         Some(PreToolUsePayload {
             tool_name: HookToolName::apply_patch(),
             tool_input: json!({ "command": patch }),
+            tool_action: Some(patch_action(
+                "Added",
+                vec![patch_action_item(
+                    HookToolActionKind::Added,
+                    "Added",
+                    "hello.txt",
+                )],
+            )),
         })
     );
 }
@@ -74,6 +111,14 @@ async fn pre_tool_use_payload_uses_freeform_patch_input() {
         Some(PreToolUsePayload {
             tool_name: HookToolName::apply_patch(),
             tool_input: json!({ "command": patch }),
+            tool_action: Some(patch_action(
+                "Added",
+                vec![patch_action_item(
+                    HookToolActionKind::Added,
+                    "Added",
+                    "hello.txt",
+                )],
+            )),
         })
     );
 }
@@ -95,7 +140,94 @@ async fn post_tool_use_payload_uses_patch_input_and_tool_output() {
             tool_use_id: "call-apply-patch".to_string(),
             tool_input: json!({ "command": patch }),
             tool_response: json!("Success. Updated files."),
+            tool_action: Some(patch_action(
+                "Added",
+                vec![patch_action_item(
+                    HookToolActionKind::Added,
+                    "Added",
+                    "hello.txt",
+                )],
+            )),
         })
+    );
+}
+
+#[tokio::test]
+async fn pre_tool_use_payload_classifies_update_and_delete_patches() {
+    let update_patch = r#"*** Begin Patch
+*** Update File: hello.txt
+@@
+-old
++new
+*** End Patch"#;
+    let delete_patch = r#"*** Begin Patch
+*** Delete File: old.txt
+*** End Patch"#;
+    let handler = ApplyPatchHandler;
+
+    let update = handler.pre_tool_use_payload(
+        &invocation_for_payload(ToolPayload::Custom {
+            input: update_patch.to_string(),
+        })
+        .await,
+    );
+    assert_eq!(
+        update.expect("update patch payload").tool_action,
+        Some(patch_action(
+            "Edited",
+            vec![patch_action_item(
+                HookToolActionKind::Edited,
+                "Edited",
+                "hello.txt",
+            )],
+        ))
+    );
+
+    let delete = handler.pre_tool_use_payload(
+        &invocation_for_payload(ToolPayload::Custom {
+            input: delete_patch.to_string(),
+        })
+        .await,
+    );
+    assert_eq!(
+        delete.expect("delete patch payload").tool_action,
+        Some(patch_action(
+            "Deleted",
+            vec![patch_action_item(
+                HookToolActionKind::Deleted,
+                "Deleted",
+                "old.txt",
+            )],
+        ))
+    );
+}
+
+#[tokio::test]
+async fn post_tool_use_payload_uses_edited_summary_for_multi_file_patch() {
+    let patch = r#"*** Begin Patch
+*** Add File: added.txt
++hello
+*** Delete File: old.txt
+*** End Patch"#;
+    let invocation = invocation_for_payload(ToolPayload::Custom {
+        input: patch.to_string(),
+    })
+    .await;
+    let output = ApplyPatchToolOutput::from_text("Success. Updated files.".to_string());
+    let handler = ApplyPatchHandler;
+
+    assert_eq!(
+        handler
+            .post_tool_use_payload(&invocation, &output)
+            .expect("post payload")
+            .tool_action,
+        Some(patch_action(
+            "Edited",
+            vec![
+                patch_action_item(HookToolActionKind::Added, "Added", "added.txt"),
+                patch_action_item(HookToolActionKind::Deleted, "Deleted", "old.txt"),
+            ],
+        ))
     );
 }
 

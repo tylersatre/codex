@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use codex_hooks::HookToolAction;
+use codex_hooks::HookToolActionItem;
+use codex_hooks::HookToolActionKind;
 use codex_protocol::models::ShellCommandToolCallParams;
 use core_test_support::PathBufExt;
 use core_test_support::test_path_buf;
@@ -237,6 +240,7 @@ async fn shell_pre_tool_use_payload_uses_joined_command() {
         Some(crate::tools::registry::PreToolUsePayload {
             tool_name: HookToolName::bash(),
             tool_input: json!({ "command": "bash -lc 'printf hi'" }),
+            tool_action: Some(run_action("Run", "bash -lc 'printf hi'")),
         })
     );
 }
@@ -265,6 +269,77 @@ async fn shell_command_pre_tool_use_payload_uses_raw_command() {
         Some(crate::tools::registry::PreToolUsePayload {
             tool_name: HookToolName::bash(),
             tool_input: json!({ "command": "printf shell command" }),
+            tool_action: Some(run_action("Run", "printf shell command")),
+        })
+    );
+}
+
+#[tokio::test]
+async fn shell_command_pre_tool_use_payload_classifies_reads_and_searches() {
+    let handler = ShellCommandHandler {
+        backend: super::ShellCommandBackend::Classic,
+    };
+
+    let (read_session, read_turn) = make_session_and_context().await;
+    let cwd = read_turn.cwd.clone();
+    let read_payload = ToolPayload::Function {
+        arguments: json!({ "command": "cat foo.txt" }).to_string(),
+    };
+    let read = handler
+        .pre_tool_use_payload(&ToolInvocation {
+            session: read_session.into(),
+            turn: read_turn.into(),
+            cancellation_token: tokio_util::sync::CancellationToken::new(),
+            tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
+            call_id: "call-read".to_string(),
+            tool_name: codex_tools::ToolName::plain("shell_command"),
+            source: crate::tools::context::ToolCallSource::Direct,
+            payload: read_payload,
+        })
+        .expect("read payload");
+    assert_eq!(
+        read.tool_action,
+        Some(HookToolAction {
+            display_label: "Read".to_string(),
+            actions: vec![HookToolActionItem {
+                kind: HookToolActionKind::Read,
+                label: "Read".to_string(),
+                command: Some("cat foo.txt".to_string()),
+                name: Some("foo.txt".to_string()),
+                path: Some(cwd.join("foo.txt").display().to_string()),
+                query: None,
+            }],
+        })
+    );
+
+    let (search_session, search_turn) = make_session_and_context().await;
+    let search_payload = ToolPayload::Function {
+        arguments: json!({ "command": "rg TODO src" }).to_string(),
+    };
+    let search = handler
+        .pre_tool_use_payload(&ToolInvocation {
+            session: search_session.into(),
+            turn: search_turn.into(),
+            cancellation_token: tokio_util::sync::CancellationToken::new(),
+            tracker: Arc::new(Mutex::new(TurnDiffTracker::new())),
+            call_id: "call-search".to_string(),
+            tool_name: codex_tools::ToolName::plain("shell_command"),
+            source: crate::tools::context::ToolCallSource::Direct,
+            payload: search_payload,
+        })
+        .expect("search payload");
+    assert_eq!(
+        search.tool_action,
+        Some(HookToolAction {
+            display_label: "Search".to_string(),
+            actions: vec![HookToolActionItem {
+                kind: HookToolActionKind::Search,
+                label: "Search".to_string(),
+                command: Some("rg TODO src".to_string()),
+                name: None,
+                path: Some("src".to_string()),
+                query: Some("TODO".to_string()),
+            }],
         })
     );
 }
@@ -299,7 +374,22 @@ async fn build_post_tool_use_payload_uses_tool_output_wire_value() {
             tool_name: HookToolName::bash(),
             tool_use_id: "call-42".to_string(),
             tool_input: json!({ "command": "printf shell command" }),
+            tool_action: Some(run_action("Ran", "printf shell command")),
             tool_response: json!("shell output"),
         })
     );
+}
+
+fn run_action(label: &str, command: &str) -> HookToolAction {
+    HookToolAction {
+        display_label: label.to_string(),
+        actions: vec![HookToolActionItem {
+            kind: HookToolActionKind::Run,
+            label: label.to_string(),
+            command: Some(command.to_string()),
+            name: None,
+            path: None,
+            query: None,
+        }],
+    }
 }

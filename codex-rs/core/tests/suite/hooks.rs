@@ -21,6 +21,7 @@ use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::RolloutLine;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::user_input::UserInput;
+use core_test_support::PathBufExt;
 use core_test_support::responses::ev_apply_patch_function_call;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;
@@ -2533,6 +2534,67 @@ async fn post_tool_use_records_additional_context_for_shell_command() -> Result<
         hook_inputs[0]["turn_id"]
             .as_str()
             .is_some_and(|turn_id| !turn_id.is_empty())
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn post_tool_use_includes_read_tool_action_for_shell_command() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let cwd = TempDir::new().context("create cwd")?;
+    let file_name = "hook_read_fixture.txt";
+    let file_path = cwd.path().join(file_name);
+    fs::write(&file_path, "hook read payload\n").context("write read fixture")?;
+
+    let server = start_mock_server().await;
+    let call_id = "posttooluse-shell-read";
+    let command = format!("cat {file_name}");
+    let args = serde_json::json!({ "command": command });
+    mount_sse_once(
+        &server,
+        sse(vec![
+            ev_response_created("resp-1"),
+            ev_function_call(call_id, "shell_command", &serde_json::to_string(&args)?),
+            ev_completed("resp-1"),
+        ]),
+    )
+    .await;
+
+    let cwd_path = cwd.path().to_path_buf();
+    let mut builder = test_codex()
+        .with_pre_build_hook(|home| {
+            if let Err(error) = write_post_tool_use_hook(home, Some("^Bash$"), "noop", "") {
+                panic!("failed to write post tool use hook test fixture: {error}");
+            }
+        })
+        .with_config(move |config| {
+            config.cwd = cwd_path.abs();
+            config
+                .features
+                .enable(Feature::CodexHooks)
+                .expect("test config should allow feature update");
+        });
+    let test = builder.build(&server).await?;
+
+    test.submit_turn("read the fixture with post hook").await?;
+
+    let hook_inputs = read_post_tool_use_hook_inputs(test.codex_home_path())?;
+    assert_eq!(hook_inputs.len(), 1);
+    assert_eq!(hook_inputs[0]["hook_event_name"], "PostToolUse");
+    assert_eq!(hook_inputs[0]["tool_name"], "Bash");
+    assert_eq!(hook_inputs[0]["tool_input"]["command"], command);
+    assert_eq!(hook_inputs[0]["tool_action"]["display_label"], "Read");
+    assert_eq!(
+        hook_inputs[0]["tool_action"]["actions"],
+        serde_json::json!([{
+            "kind": "read",
+            "label": "Read",
+            "command": command,
+            "name": file_name,
+            "path": file_path.display().to_string()
+        }])
     );
 
     Ok(())

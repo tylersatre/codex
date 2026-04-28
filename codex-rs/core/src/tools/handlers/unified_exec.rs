@@ -14,6 +14,8 @@ use crate::tools::handlers::normalize_and_validate_additional_permissions;
 use crate::tools::handlers::parse_arguments;
 use crate::tools::handlers::parse_arguments_with_base_path;
 use crate::tools::handlers::resolve_workdir_base_path;
+use crate::tools::hook_action::ShellHookActionPhase;
+use crate::tools::hook_action::shell_tool_action;
 use crate::tools::hook_names::HookToolName;
 use crate::tools::registry::PostToolUsePayload;
 use crate::tools::registry::PreToolUsePayload;
@@ -146,9 +148,14 @@ impl ToolHandler for UnifiedExecHandler {
 
         parse_arguments::<ExecCommandArgs>(arguments)
             .ok()
-            .map(|args| PreToolUsePayload {
-                tool_name: HookToolName::bash(),
-                tool_input: serde_json::json!({ "command": args.cmd }),
+            .map(|args| {
+                let tool_action =
+                    shell_tool_action(&args.cmd, &invocation.turn.cwd, ShellHookActionPhase::Pre);
+                PreToolUsePayload {
+                    tool_name: HookToolName::bash(),
+                    tool_input: serde_json::json!({ "command": args.cmd }),
+                    tool_action,
+                }
             })
     }
 
@@ -168,10 +175,13 @@ impl ToolHandler for UnifiedExecHandler {
             result.event_call_id.clone()
         };
         let tool_response = result.post_tool_use_response(&tool_use_id, &invocation.payload)?;
+        let tool_action =
+            shell_tool_action(&command, &invocation.turn.cwd, ShellHookActionPhase::Post);
         Some(PostToolUsePayload {
             tool_name: HookToolName::bash(),
             tool_use_id,
             tool_input: serde_json::json!({ "command": command }),
+            tool_action,
             tool_response,
         })
     }

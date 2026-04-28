@@ -135,6 +135,7 @@ pub(crate) struct ApprovalCtx<'a> {
 pub(crate) struct PermissionRequestPayload {
     pub tool_name: HookToolName,
     pub tool_input: serde_json::Value,
+    pub tool_action: Option<codex_hooks::HookToolAction>,
 }
 
 impl PermissionRequestPayload {
@@ -151,6 +152,7 @@ impl PermissionRequestPayload {
         Self {
             tool_name: HookToolName::bash(),
             tool_input: serde_json::Value::Object(tool_input),
+            tool_action: None,
         }
     }
 }

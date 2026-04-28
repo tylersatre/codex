@@ -21,6 +21,9 @@ use crate::tools::context::ToolPayload;
 use crate::tools::hook_names::HookToolName;
 use crate::tools::registry::ToolHandler;
 use crate::turn_diff_tracker::TurnDiffTracker;
+use codex_hooks::HookToolAction;
+use codex_hooks::HookToolActionItem;
+use codex_hooks::HookToolActionKind;
 use tokio::sync::Mutex;
 
 async fn invocation_for_payload(
@@ -240,6 +243,7 @@ async fn exec_command_pre_tool_use_payload_uses_raw_command() {
         Some(crate::tools::registry::PreToolUsePayload {
             tool_name: HookToolName::bash(),
             tool_input: serde_json::json!({ "command": "printf exec command" }),
+            tool_action: Some(run_action("Run", "printf exec command")),
         })
     );
 }
@@ -290,6 +294,7 @@ async fn exec_command_post_tool_use_payload_uses_output_for_noninteractive_one_s
             tool_name: HookToolName::bash(),
             tool_use_id: "call-43".to_string(),
             tool_input: serde_json::json!({ "command": "echo three" }),
+            tool_action: Some(run_action("Ran", "echo three")),
             tool_response: serde_json::json!("three"),
         })
     );
@@ -319,6 +324,7 @@ async fn exec_command_post_tool_use_payload_uses_output_for_interactive_completi
             tool_name: HookToolName::bash(),
             tool_use_id: "call-44".to_string(),
             tool_input: serde_json::json!({ "command": "echo three" }),
+            tool_action: Some(run_action("Ran", "echo three")),
             tool_response: serde_json::json!("three"),
         })
     );
@@ -375,6 +381,7 @@ async fn write_stdin_post_tool_use_payload_uses_original_exec_call_id_and_comman
             tool_name: HookToolName::bash(),
             tool_use_id: "exec-call-45".to_string(),
             tool_input: serde_json::json!({ "command": "sleep 1; echo finished" }),
+            tool_action: Some(run_action("Ran", "sleep 1; echo finished")),
             tool_response: serde_json::json!("finished\n"),
         })
     );
@@ -422,14 +429,57 @@ async fn write_stdin_post_tool_use_payload_keeps_parallel_session_metadata_separ
                 tool_name: HookToolName::bash(),
                 tool_use_id: "exec-call-b".to_string(),
                 tool_input: serde_json::json!({ "command": "sleep 1; echo beta" }),
+                tool_action: Some(run_action("Ran", "sleep 1; echo beta")),
                 tool_response: serde_json::json!("beta\n"),
             }),
             Some(crate::tools::registry::PostToolUsePayload {
                 tool_name: HookToolName::bash(),
                 tool_use_id: "exec-call-a".to_string(),
                 tool_input: serde_json::json!({ "command": "sleep 2; echo alpha" }),
+                tool_action: Some(run_action("Ran", "sleep 2; echo alpha")),
                 tool_response: serde_json::json!("alpha\n"),
             }),
         ]
     );
+}
+
+#[tokio::test]
+async fn exec_command_pre_tool_use_payload_classifies_search() {
+    let payload = ToolPayload::Function {
+        arguments: serde_json::json!({ "cmd": "rg TODO src" }).to_string(),
+    };
+    let invocation = invocation_for_payload("exec_command", "call-search", payload).await;
+
+    let hook_payload = UnifiedExecHandler
+        .pre_tool_use_payload(&invocation)
+        .expect("pre hook payload");
+
+    assert_eq!(
+        hook_payload.tool_action,
+        Some(HookToolAction {
+            display_label: "Search".to_string(),
+            actions: vec![HookToolActionItem {
+                kind: HookToolActionKind::Search,
+                label: "Search".to_string(),
+                command: Some("rg TODO src".to_string()),
+                name: None,
+                path: Some("src".to_string()),
+                query: Some("TODO".to_string()),
+            }],
+        })
+    );
+}
+
+fn run_action(label: &str, command: &str) -> HookToolAction {
+    HookToolAction {
+        display_label: label.to_string(),
+        actions: vec![HookToolActionItem {
+            kind: HookToolActionKind::Run,
+            label: label.to_string(),
+            command: Some(command.to_string()),
+            name: None,
+            path: None,
+            query: None,
+        }],
+    }
 }

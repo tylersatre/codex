@@ -12,6 +12,8 @@ use serde_json::Value;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::tool_action::HookToolAction;
+
 const GENERATED_DIR: &str = "generated";
 const POST_TOOL_USE_INPUT_FIXTURE: &str = "post-tool-use.command.input.schema.json";
 const POST_TOOL_USE_OUTPUT_FIXTURE: &str = "post-tool-use.command.output.schema.json";
@@ -226,6 +228,8 @@ pub(crate) struct PreToolUseCommandInput {
     pub permission_mode: String,
     pub tool_name: String,
     pub tool_input: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_action: Option<HookToolAction>,
     pub tool_use_id: String,
 }
 
@@ -245,6 +249,8 @@ pub(crate) struct PermissionRequestCommandInput {
     pub permission_mode: String,
     pub tool_name: String,
     pub tool_input: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_action: Option<HookToolAction>,
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema)]
@@ -263,6 +269,8 @@ pub(crate) struct PostToolUseCommandInput {
     pub permission_mode: String,
     pub tool_name: String,
     pub tool_input: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_action: Option<HookToolAction>,
     pub tool_response: Value,
     pub tool_use_id: String,
 }

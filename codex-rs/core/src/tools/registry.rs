@@ -22,6 +22,7 @@ use codex_hooks::HookEvent;
 use codex_hooks::HookEventAfterToolUse;
 use codex_hooks::HookPayload;
 use codex_hooks::HookResult;
+use codex_hooks::HookToolAction;
 use codex_hooks::HookToolInput;
 use codex_hooks::HookToolInputLocalShell;
 use codex_hooks::HookToolKind;
@@ -142,6 +143,8 @@ pub(crate) struct PreToolUsePayload {
     /// Shell-like tools use `{ "command": ... }`; MCP tools use their resolved
     /// JSON arguments.
     pub(crate) tool_input: Value,
+    /// Hook-facing action metadata that summarizes how Codex classifies the tool call.
+    pub(crate) tool_action: Option<HookToolAction>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -155,6 +158,8 @@ pub(crate) struct PostToolUsePayload {
     pub(crate) tool_use_id: String,
     /// Tool-specific input exposed at `tool_input`.
     pub(crate) tool_input: Value,
+    /// Hook-facing action metadata that summarizes how Codex classifies the tool call.
+    pub(crate) tool_action: Option<HookToolAction>,
     /// Tool result exposed at `tool_response`.
     pub(crate) tool_response: Value,
 }
@@ -361,6 +366,7 @@ impl ToolRegistry {
                 invocation.call_id.clone(),
                 &pre_tool_use_payload.tool_name,
                 &pre_tool_use_payload.tool_input,
+                pre_tool_use_payload.tool_action.clone(),
             )
             .await
         {
@@ -424,11 +430,7 @@ impl ToolRegistry {
                 run_post_tool_use_hooks(
                     &invocation.session,
                     &invocation.turn,
-                    post_tool_use_payload.tool_use_id,
-                    post_tool_use_payload.tool_name.name().to_string(),
-                    post_tool_use_payload.tool_name.matcher_aliases().to_vec(),
-                    post_tool_use_payload.tool_input,
-                    post_tool_use_payload.tool_response,
+                    post_tool_use_payload,
                 )
                 .await,
             )

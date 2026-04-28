@@ -31,6 +31,7 @@ impl ToolHandler for McpHandler {
         Some(PreToolUsePayload {
             tool_name: HookToolName::new(invocation.tool_name.display()),
             tool_input: mcp_hook_tool_input(raw_arguments),
+            tool_action: None,
         })
     }
 
@@ -49,6 +50,7 @@ impl ToolHandler for McpHandler {
             tool_name: HookToolName::new(invocation.tool_name.display()),
             tool_use_id: invocation.call_id.clone(),
             tool_input: result.tool_input.clone(),
+            tool_action: None,
             tool_response,
         })
     }
@@ -153,6 +155,7 @@ mod tests {
                         "entityType": "person"
                     }]
                 }),
+                tool_action: None,
             })
         );
     }
@@ -203,6 +206,7 @@ mod tests {
                         "file_id": "file_123"
                     }
                 }),
+                tool_action: None,
                 tool_response: json!({
                     "content": [{
                         "type": "text",

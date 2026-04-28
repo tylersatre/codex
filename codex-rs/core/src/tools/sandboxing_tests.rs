@@ -13,6 +13,7 @@ fn bash_permission_request_payload_omits_missing_description() {
         PermissionRequestPayload {
             tool_name: HookToolName::bash(),
             tool_input: json!({ "command": "echo hi" }),
+            tool_action: None,
         }
     );
 }
@@ -30,6 +31,7 @@ fn bash_permission_request_payload_includes_description_when_present() {
                 "command": "echo hi",
                 "description": "network-access example.com",
             }),
+            tool_action: None,
         }
     );
 }

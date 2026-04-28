@@ -22,6 +22,7 @@ use crate::engine::command_runner::CommandRunResult;
 use crate::engine::dispatcher;
 use crate::engine::output_parser;
 use crate::schema::PermissionRequestCommandInput;
+use crate::tool_action::HookToolAction;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::HookCompletedEvent;
 use codex_protocol::protocol::HookEventName;
@@ -43,6 +44,7 @@ pub struct PermissionRequestRequest {
     pub matcher_aliases: Vec<String>,
     pub run_id_suffix: String,
     pub tool_input: Value,
+    pub tool_action: Option<HookToolAction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,6 +180,7 @@ fn build_command_input(request: &PermissionRequestRequest) -> PermissionRequestC
         permission_mode: request.permission_mode.clone(),
         tool_name: request.tool_name.clone(),
         tool_input: request.tool_input.clone(),
+        tool_action: request.tool_action.clone(),
     }
 }
 

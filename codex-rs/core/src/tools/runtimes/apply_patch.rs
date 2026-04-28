@@ -200,6 +200,10 @@ impl Approvable<ApplyPatchRequest> for ApplyPatchRuntime {
         Some(PermissionRequestPayload {
             tool_name: HookToolName::apply_patch(),
             tool_input: serde_json::json!({ "command": req.action.patch }),
+            tool_action: crate::tools::hook_action::apply_patch_tool_action(
+                &req.action.patch,
+                &req.action.cwd,
+            ),
         })
     }
 }

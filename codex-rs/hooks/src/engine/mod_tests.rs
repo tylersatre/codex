@@ -126,6 +126,7 @@ with Path(r"{log_path}").open("a", encoding="utf-8") as handle:
         matcher_aliases: Vec::new(),
         tool_use_id: "tool-1".to_string(),
         tool_input: serde_json::json!({ "command": "echo hello" }),
+        tool_action: None,
     });
     assert_eq!(preview.len(), 1);
     assert_eq!(preview[0].source_path, managed_dir);
@@ -142,6 +143,7 @@ with Path(r"{log_path}").open("a", encoding="utf-8") as handle:
             matcher_aliases: Vec::new(),
             tool_use_id: "tool-1".to_string(),
             tool_input: serde_json::json!({ "command": "echo hello" }),
+            tool_action: None,
         })
         .await;
 
@@ -213,6 +215,7 @@ fn requirements_managed_hooks_warn_when_managed_dir_is_missing() {
                 matcher_aliases: Vec::new(),
                 tool_use_id: "tool-1".to_string(),
                 tool_input: serde_json::json!({ "command": "echo hello" }),
+                tool_action: None,
             })
             .is_empty()
     );
@@ -319,6 +322,7 @@ fn discovers_hooks_from_json_and_toml_in_the_same_layer() {
         matcher_aliases: Vec::new(),
         tool_use_id: "tool-1".to_string(),
         tool_input: serde_json::json!({ "command": "echo hello" }),
+        tool_action: None,
     });
     assert_eq!(preview.len(), 2);
     assert!(engine.handlers.iter().all(|handler| !handler.is_managed));

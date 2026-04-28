@@ -22,6 +22,7 @@ use crate::tools::events::ToolEmitter;
 use crate::tools::events::ToolEventCtx;
 use crate::tools::handlers::apply_granted_turn_permissions;
 use crate::tools::handlers::parse_arguments;
+use crate::tools::hook_action::apply_patch_tool_action;
 use crate::tools::hook_names::HookToolName;
 use crate::tools::orchestrator::ToolOrchestrator;
 use crate::tools::registry::PostToolUsePayload;
@@ -315,9 +316,13 @@ impl ToolHandler for ApplyPatchHandler {
     }
 
     fn pre_tool_use_payload(&self, invocation: &ToolInvocation) -> Option<PreToolUsePayload> {
-        apply_patch_payload_command(&invocation.payload).map(|command| PreToolUsePayload {
-            tool_name: HookToolName::apply_patch(),
-            tool_input: serde_json::json!({ "command": command }),
+        apply_patch_payload_command(&invocation.payload).map(|command| {
+            let tool_action = apply_patch_tool_action(&command, &invocation.turn.cwd);
+            PreToolUsePayload {
+                tool_name: HookToolName::apply_patch(),
+                tool_input: serde_json::json!({ "command": command }),
+                tool_action,
+            }
         })
     }
 
@@ -328,12 +333,13 @@ impl ToolHandler for ApplyPatchHandler {
     ) -> Option<PostToolUsePayload> {
         let tool_response =
             result.post_tool_use_response(&invocation.call_id, &invocation.payload)?;
+        let command = apply_patch_payload_command(&invocation.payload)?;
+        let tool_action = apply_patch_tool_action(&command, &invocation.turn.cwd);
         Some(PostToolUsePayload {
             tool_name: HookToolName::apply_patch(),
             tool_use_id: invocation.call_id.clone(),
-            tool_input: serde_json::json!({
-                "command": apply_patch_payload_command(&invocation.payload)?,
-            }),
+            tool_input: serde_json::json!({ "command": command }),
+            tool_action,
             tool_response,
         })
     }

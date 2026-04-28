@@ -3,6 +3,7 @@ pub(crate) mod events;
 mod legacy_notify;
 mod registry;
 mod schema;
+mod tool_action;
 mod types;
 
 pub use events::permission_request::PermissionRequestDecision;
@@ -25,6 +26,9 @@ pub use registry::Hooks;
 pub use registry::HooksConfig;
 pub use registry::command_from_argv;
 pub use schema::write_schema_fixtures;
+pub use tool_action::HookToolAction;
+pub use tool_action::HookToolActionItem;
+pub use tool_action::HookToolActionKind;
 pub use types::Hook;
 pub use types::HookEvent;
 pub use types::HookEventAfterAgent;

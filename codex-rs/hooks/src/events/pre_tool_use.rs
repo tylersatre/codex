@@ -17,6 +17,7 @@ use crate::engine::command_runner::CommandRunResult;
 use crate::engine::dispatcher;
 use crate::engine::output_parser;
 use crate::schema::PreToolUseCommandInput;
+use crate::tool_action::HookToolAction;
 
 #[derive(Debug, Clone)]
 pub struct PreToolUseRequest {
@@ -30,6 +31,7 @@ pub struct PreToolUseRequest {
     pub matcher_aliases: Vec<String>,
     pub tool_use_id: String,
     pub tool_input: Value,
+    pub tool_action: Option<HookToolAction>,
 }
 
 #[derive(Debug)]
@@ -138,6 +140,7 @@ fn command_input_json(request: &PreToolUseRequest) -> Result<String, serde_json:
         permission_mode: request.permission_mode.clone(),
         tool_name: request.tool_name.clone(),
         tool_input: request.tool_input.clone(),
+        tool_action: request.tool_action.clone(),
         tool_use_id: request.tool_use_id.clone(),
     })
 }
@@ -268,6 +271,9 @@ mod tests {
     use crate::engine::ConfiguredHandler;
     use crate::engine::command_runner::CommandRunResult;
     use crate::events::common;
+    use crate::tool_action::HookToolAction;
+    use crate::tool_action::HookToolActionItem;
+    use crate::tool_action::HookToolActionKind;
 
     #[test]
     fn command_input_uses_request_tool_name() {
@@ -279,6 +285,41 @@ mod tests {
             serde_json::from_str(&input_json).expect("parse command input");
 
         assert_eq!(input["tool_name"], "apply_patch");
+    }
+
+    #[test]
+    fn command_input_serializes_tool_action_when_available() {
+        let mut request = request_for_tool_use("call-read");
+        request.tool_action = Some(read_action());
+
+        let input_json = command_input_json(&request).expect("serialize command input");
+        let input: serde_json::Value =
+            serde_json::from_str(&input_json).expect("parse command input");
+
+        assert_eq!(
+            input["tool_action"],
+            serde_json::json!({
+                "display_label": "Read",
+                "actions": [{
+                    "kind": "read",
+                    "label": "Read",
+                    "command": "cat foo.txt",
+                    "name": "foo.txt",
+                    "path": "/tmp/foo.txt"
+                }]
+            })
+        );
+    }
+
+    #[test]
+    fn command_input_omits_missing_tool_action() {
+        let request = request_for_tool_use("call-read");
+
+        let input_json = command_input_json(&request).expect("serialize command input");
+        let input: serde_json::Value =
+            serde_json::from_str(&input_json).expect("parse command input");
+
+        assert!(input.get("tool_action").is_none());
     }
 
     #[test]
@@ -569,6 +610,21 @@ mod tests {
             matcher_aliases: Vec::new(),
             tool_use_id: tool_use_id.to_string(),
             tool_input: serde_json::json!({ "command": "echo hello" }),
+            tool_action: None,
+        }
+    }
+
+    fn read_action() -> HookToolAction {
+        HookToolAction {
+            display_label: "Read".to_string(),
+            actions: vec![HookToolActionItem {
+                kind: HookToolActionKind::Read,
+                label: "Read".to_string(),
+                command: Some("cat foo.txt".to_string()),
+                name: Some("foo.txt".to_string()),
+                path: Some("/tmp/foo.txt".to_string()),
+                query: None,
+            }],
         }
     }
 }
